@@ -1,49 +1,105 @@
+import React, {useMemo} from 'react';
 import TypingArea from "../../components/TypingArea/TypingArea";
 import ScoreBoard from "../../components/ScoreBoard/ScoreBoard";
-import {useEffect, useRef, useState} from "react";
-import { countKoreanTyping } from "../../utils/TypingUtils"; // 유틸리티 함수를 import합니다.
+import {useEffect, useState} from "react";
+import { countKoreanTyping } from "../../utils/TypingUtils";
 
 const MainPage = () =>{
-    const textQueue = [
+    const textQueue = useMemo(() => [
         '가가가',
         '나나나',
         '다다다',
         '네 번째 텍스트 네 번째 텍스트',
         '다섯 번째 텍스트 다섯 번째 텍스트',
         '여섯 번째 텍스트 여섯 번째 텍스트',
-    ];
+    ], []);
 
     const [inputValue, setInputValue] = useState<string>('');
     const [completedTexts, setCompletedTexts] = useState<string[]>([]);
-    const [focusIndex, setFocusIndex] = useState<number>(0); // 포커스 인덱스 추가
+    const [focusIndex, setFocusIndex] = useState<number>(0);
     const [typingSpeed, setTypingSpeed] = useState<number>(0);
     const [errorRate, setErrorRate] = useState<number>(0);
     const [timer, setTimer] = useState<number>(0);
-
+    const [timerStarted, setTimerStarted] = useState<boolean>(false);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const currentInput = e.target.value;
-        setInputValue(currentInput);
+        if(inputValue.length < textQueue[focusIndex].length){
+            const currentInput = e.target.value;
+            setInputValue(currentInput);
+            calculateTypingSpeed();
+            calculateErrorRate();
 
-        setTypingSpeed(countKoreanTyping(currentInput) / (timer / 60));
-        setErrorRate([...currentInput].filter((char, index) => char !== textQueue[focusIndex][index]).length);
-
-        // 입력값이 현재 텍스트와 일치하거나, 입력값의 길이가 현재 텍스트의 길이보다 길 경우
-        if (currentInput === textQueue[focusIndex] || currentInput.length >= textQueue[focusIndex].length) {
-            setCompletedTexts(prevCompletedTexts => [...prevCompletedTexts, currentInput]);
-            setInputValue(''); // 입력값을 초기화합니다.
-            setFocusIndex(focusIndex + 1); // 다음 텍스트로 넘어갑니다.
+            if (!timerStarted) {
+                setTimerStarted(true);
+            }
         }
     };
+    const handleSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            if(inputValue.length >= textQueue[focusIndex].length){
+                setCompletedTexts(prevCompletedTexts => [...prevCompletedTexts, inputValue]);
+                setInputValue('');
+                setFocusIndex(focusIndex + 1);
+            }
+            e.preventDefault();
+        }
+        if (e.key === 'Backspace' &&  inputValue.length < textQueue[focusIndex].length) {
+            setInputValue(prevValue => prevValue.slice(0, -1));
+        }
+    };
+    const calculateTypingSpeed = React.useCallback(() => {
+        if(timer === 0 ) return
+        let totalTypedCharacters = 0;
+        console.log(completedTexts)
+        // 완료된 텍스트들의 문자 수를 합산
+        completedTexts.forEach(text => {
+            totalTypedCharacters += countKoreanTyping(text);
+        });
 
-    // 타이머 설정
+        // 현재 입력 중인 텍스트의 문자 수를 합산
+        totalTypedCharacters += countKoreanTyping(inputValue);
+        // 분 단위로 계산
+        const speed = totalTypedCharacters / (timer / 60);
+
+        setTypingSpeed(speed);
+    }, [completedTexts, inputValue, timer]);
+
+    // 오타 수 계산
+    const calculateErrorRate = React.useCallback(() => {
+        let totalErrors = 0;
+
+        // 완료된 텍스트들의 오타 수를 합산
+        completedTexts.forEach((text, index) => {
+            totalErrors += [...text].filter((char, idx) => char !== textQueue[index][idx]).length;
+        });
+
+        // // 현재 입력 중인 텍스트의 오타 수를 합산
+        // totalErrors += [...inputValue].filter((char, index) => char !== textQueue[focusIndex][index]).length;
+
+        setErrorRate(totalErrors);
+    }, [completedTexts, inputValue, textQueue, focusIndex]);
+
+// 타이머를 관리하는 useEffect
     useEffect(() => {
-        const interval = setInterval(() => {
-            setTimer(prevTimer => prevTimer + 1);
-        }, 1000); // 1초마다 업데이트
+        let interval: NodeJS.Timeout | null = null;
 
-        return () => clearInterval(interval); // 컴포넌트 unmount 시, 타이머 해제
-    }, []);
+        if (timerStarted) {
+            interval = setInterval(() => {
+                setTimer(prevTimer => prevTimer + 1);
+            }, 1000);
+        }
+
+        return () => {
+            if (interval) {
+                clearInterval(interval);
+            }
+        };
+    }, [timerStarted]);
+
+// 타이핑 속도를 계산하는 useEffect
+    useEffect(() => {
+        calculateTypingSpeed();
+    }, [timer, calculateTypingSpeed]);
 
     return(
         <div className={"w-screen h-screen flex flex-col justify-center items-center"}>
@@ -52,9 +108,10 @@ const MainPage = () =>{
                 className="w-full h-screen bg-transparent outline-none"
                 value={inputValue}
                 onChange={handleInputChange}
+                onKeyDown={handleSubmit} // 수정된 부분
                 // style={{ caretColor: 'transparent', opacity: 0, position: 'absolute',cursor: 'default' }}
             />
-            <TypingArea textQueue={textQueue} inputValue={inputValue} focusIndex={focusIndex}/>
+            <TypingArea textQueue={textQueue} completedTexts={completedTexts} inputValue={inputValue} focusIndex={focusIndex}/>
             <ScoreBoard typingSpeed={typingSpeed} errorRate={errorRate} timer={timer}/>
         </div>
     )

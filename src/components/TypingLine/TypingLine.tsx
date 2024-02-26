@@ -15,27 +15,23 @@ const TypingLine: React.FC<TypingLineProps> = ({ text, inputValue, lineType }) =
 
     const renderPresentText = () => {
         return [...inputValue].map((char, index) => {
-            const isIncorrect = text[index] !== char && index < inputValue.length-1;
+            const isIncorrect = text[index] !== char;
+            const isCurrent = lineType === "present" && index === inputValue.length-1;
             return isIncorrect ? (
-                <span key={index} className="text-red-500">{text[index]}</span>
+                isCurrent ? (
+                    <span key={index} className="text-gray-900">{char}</span>
+                ) : (
+                    <span key={index} className="text-red-500">{text[index]}</span>
+                )
             ) : (
                 <span key={index} className="text-gray-900">{char}</span>
             );
         });
     };
-
     return (
         <p className={classNames[lineType]}>
-            {
-                lineType === 'present' ? (
-                    <>
-                        {renderPresentText()}
-                        <span>{text.slice(inputValue.length)}</span>
-                    </>
-                ) : (
-                    <span>{text}</span>
-                )
-            }
+            {renderPresentText()}
+            <span>{text.slice(inputValue.length)}</span>
         </p>
     );
 };
